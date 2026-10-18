@@ -432,7 +432,7 @@ class instanceWindow(QWidget):
                 if "Body" in self.itemPressed:
                     self.move(x + dx, y + dy)
                 else:
-                    if self.__class__.__name__ == "searchWindow":
+                    if self.__class__.__name__ in ("searchWindow", "infoWindow"):
                         if (
                             ("L" in self.itemPressed)
                             and (w - dx >= minW)
@@ -1012,6 +1012,10 @@ class globalSettingwindow(instanceWindow):
         self.bottomButtonhBox.addStretch(0)
         self.newButton = QPushButton(self, icon=Media["NewIconMain"])
         self.infoButton = QPushButton(self, icon=Media["InfoIcon"])
+        self.rememberButton = QPushButton("Remember Layout", self)
+        self.rememberButton.setStyleSheet(
+            "QPushButton {color: white; border: 1px solid white; border-radius: 3px;}"
+        )
         self.newButton.setIconSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.newButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.bottomButtonhBox.addWidget(self.newButton)
@@ -1025,6 +1029,11 @@ class globalSettingwindow(instanceWindow):
                 "https://github.com/raphalimam/Warframe-Market-Overlay#warframe-market-overlay"
             )
         )
+        self.bottomButtonhBox.addStretch(0)
+        self.rememberButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.rememberButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
+        self.bottomButtonhBox.addWidget(self.rememberButton)
+        self.rememberButton.clicked.connect(self.rememberCurrentLayout)
         self.bottomButtonhBox.addStretch(0)
         self.windowBox.addLayout(self.bottomButtonhBox)
         self.bottomButtonhBox.setContentsMargins(
@@ -1048,6 +1057,15 @@ class globalSettingwindow(instanceWindow):
             self.savedLayoutsnames.append(self.savedLayoutscomboBox.itemText(i))
         if currentText == "" or currentText == "" or currentText == "reset":
             return
+        tempDict = self.snapshotCurrentLayout()
+        layoutsDict[currentText.lower()] = copy.deepcopy(tempDict)
+        if not currentText in self.savedLayoutsnames:
+            self.savedLayoutscomboBox.insertItem(2, currentText.lower())
+        self.savedLayoutscomboBox.setCurrentIndex(-1)
+        with open("layouts.p", "wb") as file:
+            pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def snapshotCurrentLayout(self):
         tempDict = {}
         for windowDesignation in self.searchWindowdict:
             if windowDesignation not in tempDict:
@@ -1074,13 +1092,23 @@ class globalSettingwindow(instanceWindow):
                 "sizeX": self.globalSettingwindowDict[windowDesignation].width(),
                 "sizeY": self.globalSettingwindowDict[windowDesignation].height(),
             }
+        for windowDesignation in self.settingWindowdict:
+            if windowDesignation not in tempDict:
+                tempDict[windowDesignation] = {}
+            tempDict[windowDesignation]["settingWindow"] = {
+                "posX": self.settingWindowdict[windowDesignation].x(),
+                "posY": self.settingWindowdict[windowDesignation].y(),
+                "sizeX": self.settingWindowdict[windowDesignation].width(),
+                "sizeY": self.settingWindowdict[windowDesignation].height(),
+            }
         tempDict["globalRadio"] = settingsDict["globalRadio"]
         tempDict["listing"] = settingsDict["listing"]
         tempDict["scale"] = settingsDict["scale"]
-        layoutsDict[currentText.lower()] = copy.deepcopy(tempDict)
-        if not currentText in self.savedLayoutsnames:
-            self.savedLayoutscomboBox.insertItem(2, currentText.lower())
-        self.savedLayoutscomboBox.setCurrentIndex(-1)
+        return tempDict
+
+    def rememberCurrentLayout(self, *args):
+        global layoutsDict
+        layoutsDict["last_used"] = copy.deepcopy(self.snapshotCurrentLayout())
         with open("layouts.p", "wb") as file:
             pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -1217,6 +1245,8 @@ class globalSettingwindow(instanceWindow):
         self.newButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.infoButton.setIconSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.infoButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
+        self.rememberButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.rememberButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
         self.bottomButtonhBox.setContentsMargins(
             10 * scaleFactor(), 10 * scaleFactor(), 10 * scaleFactor(), 10 * scaleFactor()
         )
@@ -1439,7 +1469,8 @@ if __name__ == "__main__":
             layoutsDict = pickle.load(file)
     except (FileNotFoundError, EOFError, pickle.UnpicklingError):  # if it cant do it, just use the earlier called out dict.
         pass
-    settingsDict = copy.deepcopy(layoutsDict["default"])
+    startupLayout = "last_used" if "last_used" in layoutsDict else "default"
+    settingsDict = copy.deepcopy(layoutsDict[startupLayout])
     dropLoadnames = [
         "DropIcon",
         "DropDulledIcon",
