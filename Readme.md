@@ -36,7 +36,7 @@ python overlay.py
 
 <img src="ReadmeImages/RewardScreen.PNG">
 
-Immediately, on the first run it will be set up for the relic rewards screen, at 1920x1080.
+Immediately, on the first run it will be set up for the relic rewards screen, auto-positioned to your current resolution (including ultrawide).
 
 The image above shows what you will see while using it, there is a "Search Window", which is movable and resizable. Paired with it is an "Info Window", which is also movable. This will tell you all the info it can find on that item.
 
@@ -102,6 +102,8 @@ You can increase the UI scale up to 2x, using the slider at the bottom, this was
 <br/>
 You can also create a new scan window with the "New" button at the bottom<br/>
 The "Info" Button will take you to the Readme on GitHub
+The "Remember Layout" button saves current overlay positions/sizes and reuses them on next startup
+The "Auto Reset Layout" button rebuilds overlay positions for the current monitor resolution and saves it for next startup
 
 # Thanks
 

@@ -19,13 +19,12 @@ def Posterized(image):
 
 
 def poolMap(image, imageName, currMethod, primePartsnames):
-    currMethodName = "".join(i.__name__ for i in currMethod)
     currMethoditer = imageName + "-"
     for f in currMethod:
         nextMethoditer = currMethoditer + f.__name__
         image = f(image)
         currMethoditer = nextMethoditer
-    itemInfo = imagemethodcalc.mappedCalc(image, currMethodName, primePartsnames)
+    itemInfo = imagemethodcalc.mappedCalc(image, primePartsnames)
     return itemInfo
 
 

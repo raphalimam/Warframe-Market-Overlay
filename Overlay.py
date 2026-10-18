@@ -432,7 +432,7 @@ class instanceWindow(QWidget):
                 if "Body" in self.itemPressed:
                     self.move(x + dx, y + dy)
                 else:
-                    if self.__class__.__name__ == "searchWindow":
+                    if self.__class__.__name__ in ("searchWindow", "infoWindow"):
                         if (
                             ("L" in self.itemPressed)
                             and (w - dx >= minW)
@@ -1012,6 +1012,14 @@ class globalSettingwindow(instanceWindow):
         self.bottomButtonhBox.addStretch(0)
         self.newButton = QPushButton(self, icon=Media["NewIconMain"])
         self.infoButton = QPushButton(self, icon=Media["InfoIcon"])
+        self.rememberButton = QPushButton("Remember Layout", self)
+        self.autoResetButton = QPushButton("Auto Reset Layout", self)
+        self.rememberButton.setStyleSheet(
+            "QPushButton {color: white; border: 1px solid white; border-radius: 3px;}"
+        )
+        self.autoResetButton.setStyleSheet(
+            "QPushButton {color: white; border: 1px solid white; border-radius: 3px;}"
+        )
         self.newButton.setIconSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.newButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.bottomButtonhBox.addWidget(self.newButton)
@@ -1022,9 +1030,19 @@ class globalSettingwindow(instanceWindow):
         self.bottomButtonhBox.addWidget(self.infoButton)
         self.infoButton.clicked.connect(
             lambda: webbrowser.open(
-                "https://github.com/JonathanSourdough/Warframe-Market-Overlay#warframe-market-overlay"
+                "https://github.com/raphalimam/Warframe-Market-Overlay#warframe-market-overlay"
             )
         )
+        self.bottomButtonhBox.addStretch(0)
+        self.rememberButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.rememberButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
+        self.bottomButtonhBox.addWidget(self.rememberButton)
+        self.rememberButton.clicked.connect(self.rememberCurrentLayout)
+        self.bottomButtonhBox.addStretch(0)
+        self.autoResetButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.autoResetButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
+        self.bottomButtonhBox.addWidget(self.autoResetButton)
+        self.autoResetButton.clicked.connect(self.resetToAutoLayout)
         self.bottomButtonhBox.addStretch(0)
         self.windowBox.addLayout(self.bottomButtonhBox)
         self.bottomButtonhBox.setContentsMargins(
@@ -1048,6 +1066,15 @@ class globalSettingwindow(instanceWindow):
             self.savedLayoutsnames.append(self.savedLayoutscomboBox.itemText(i))
         if currentText == "" or currentText == "" or currentText == "reset":
             return
+        tempDict = self.snapshotCurrentLayout()
+        layoutsDict[currentText.lower()] = copy.deepcopy(tempDict)
+        if not currentText in self.savedLayoutsnames:
+            self.savedLayoutscomboBox.insertItem(2, currentText.lower())
+        self.savedLayoutscomboBox.setCurrentIndex(-1)
+        with open("layouts.p", "wb") as file:
+            pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def snapshotCurrentLayout(self):
         tempDict = {}
         for windowDesignation in self.searchWindowdict:
             if windowDesignation not in tempDict:
@@ -1074,37 +1101,66 @@ class globalSettingwindow(instanceWindow):
                 "sizeX": self.globalSettingwindowDict[windowDesignation].width(),
                 "sizeY": self.globalSettingwindowDict[windowDesignation].height(),
             }
+        for windowDesignation in self.settingWindowdict:
+            if windowDesignation not in tempDict:
+                tempDict[windowDesignation] = {}
+            tempDict[windowDesignation]["settingWindow"] = {
+                "posX": self.settingWindowdict[windowDesignation].x(),
+                "posY": self.settingWindowdict[windowDesignation].y(),
+                "sizeX": self.settingWindowdict[windowDesignation].width(),
+                "sizeY": self.settingWindowdict[windowDesignation].height(),
+            }
         tempDict["globalRadio"] = settingsDict["globalRadio"]
         tempDict["listing"] = settingsDict["listing"]
         tempDict["scale"] = settingsDict["scale"]
-        layoutsDict[currentText.lower()] = copy.deepcopy(tempDict)
-        if not currentText in self.savedLayoutsnames:
-            self.savedLayoutscomboBox.insertItem(2, currentText.lower())
-        self.savedLayoutscomboBox.setCurrentIndex(-1)
+        return tempDict
+
+    def rememberCurrentLayout(self, *args):
+        global layoutsDict
+        layoutsDict["last_used"] = copy.deepcopy(self.snapshotCurrentLayout())
         with open("layouts.p", "wb") as file:
             pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def loadLayout(self, *args):
+    def applyLayoutDict(self, layoutDict):
         global settingsDict
+        self.closeAll()
+        settingsDict = copy.deepcopy(layoutDict)
+        self.windowTypes["globalSettingwindow"][0].destroy()
+        self.windowTypes["globalSettingwindow"].pop(0)
+        for k, v in settingsDict.items():
+            if "searchWindow" in v:
+                instance.searchWindowdict[k] = searchWindow(windowDesignation=k)
+                instance.infoWindowdict[k] = infoWindow(windowDesignation=k)
+            if "globalSettingwindow" in v:
+                instance.globalSettingwindowDict[k] = globalSettingwindow(windowDesignation=k)
+            if "settingWindow" in v:
+                instance.settingWindowdict[k] = settingWindow(windowDesignation=k)
+
+    def resetToAutoLayout(self, *args):
+        global layoutsDict
+        screen = app.primaryScreen()
+        if screen is not None:
+            screenGeometry = screen.availableGeometry()
+            screenWidth = screenGeometry.width()
+            screenHeight = screenGeometry.height()
+        else:
+            screenWidth = 1920
+            screenHeight = 1080
+        autoLayout = buildDefaultLayout(screenWidth, screenHeight)
+        layoutsDict["default"] = copy.deepcopy(autoLayout)
+        layoutsDict["last_used"] = copy.deepcopy(autoLayout)
+        with open("layouts.p", "wb") as file:
+            pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
+        self.applyLayoutDict(autoLayout)
+
+    def loadLayout(self, *args):
         global layoutsDict
         if self.savedLayoutscomboBox.currentIndex() != -1:
-            self.closeAll()
-            settingsDict = copy.deepcopy(
-                layoutsDict[
-                    self.savedLayoutscomboBox.itemText(self.savedLayoutscomboBox.currentIndex())
-                ]
-            )
-            self.windowTypes["globalSettingwindow"][0].destroy()
-            self.windowTypes["globalSettingwindow"].pop(0)
+            selectedLayout = layoutsDict[
+                self.savedLayoutscomboBox.itemText(self.savedLayoutscomboBox.currentIndex())
+            ]
             self.savedLayoutscomboBox.setCurrentIndex(-1)
-            for k, v in settingsDict.items():
-                if "searchWindow" in v:
-                    instance.searchWindowdict[k] = searchWindow(windowDesignation=k)
-                    instance.infoWindowdict[k] = infoWindow(windowDesignation=k)
-                if "globalSettingwindow" in v:
-                    instance.globalSettingwindowDict[k] = globalSettingwindow(windowDesignation=k)
-                if "settingWindow" in v:
-                    instance.settingWindowdict[k] = settingWindow(windowDesignation=k)
+            self.applyLayoutDict(selectedLayout)
 
     def deleteLayout(self, *args):
         global layoutsDict
@@ -1193,7 +1249,7 @@ class globalSettingwindow(instanceWindow):
             for sv in v.radioLabelslist:
                 sv.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
             v.radiobox.setContentsMargins(10 * scaleFactor(), 0, 10 * scaleFactor(), 0)
-        if len(v.radioList) == 1:
+        if len(self.radioList) == 1:
             self.radioList[0].radiobox.setMargin(10 * scaleFactor())
         else:
             self.radioList[0].radiobox.setContentsMargins(
@@ -1217,6 +1273,10 @@ class globalSettingwindow(instanceWindow):
         self.newButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.infoButton.setIconSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.infoButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
+        self.rememberButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.rememberButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
+        self.autoResetButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.autoResetButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
         self.bottomButtonhBox.setContentsMargins(
             10 * scaleFactor(), 10 * scaleFactor(), 10 * scaleFactor(), 10 * scaleFactor()
         )
@@ -1309,7 +1369,7 @@ def on_release(key):
     # When a key is released, remove it from the set of keys we are keeping track of
     try:
         current_keys.remove(key)
-    except:
+    except KeyError:
         pass
 
 
@@ -1327,11 +1387,74 @@ class showHidethread(QThread):
         self.signal.signalHide.emit()
 
 
+def buildDefaultLayout(screenWidth, screenHeight):
+    searchWidths = [236, 236, 235, 235]
+    searchHeights = [67, 67, 67, 66]
+    spacing = 7
+    totalScanWidth = sum(searchWidths) + spacing * (len(searchWidths) - 1)
+    scanStartX = max(20, int((screenWidth - totalScanWidth) / 2))
+    scanY = max(40, int(screenHeight * 0.369))
+    infoY = max(20, int(screenHeight * 0.072))
+    globalX = max(20, int(screenWidth * 0.049))
+    globalY = max(20, int(screenHeight * 0.099))
+    globalSettingHeight = max(320, min(540, int(screenHeight * 0.41)))
+    defaultLayout = {
+        "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "listing": [0],
+        "scale": [0],
+    }
+    x = scanStartX
+    for i in range(4):
+        defaultLayout[i] = {
+            "searchWindow": {
+                "posX": x,
+                "posY": scanY,
+                "sizeX": searchWidths[i],
+                "sizeY": searchHeights[i],
+            },
+            "radio": [0, 0, 0, 0, 0, 0, 0],
+            "infoWindow": {"posX": x, "posY": infoY, "sizeX": 200, "sizeY": 145},
+        }
+        x += searchWidths[i] + spacing
+    defaultLayout[0]["globalSettingwindow"] = {
+        "posX": globalX,
+        "posY": globalY,
+        "sizeX": 261,
+        "sizeY": globalSettingHeight,
+    }
+    return defaultLayout
+
+
+def buildResetLayout(screenWidth, screenHeight):
+    return {
+        "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "listing": [0],
+        "scale": [0],
+        0: {
+            "globalSettingwindow": {
+                "posX": max(20, int(screenWidth * 0.049)),
+                "posY": max(20, int(screenHeight * 0.099)),
+                "sizeX": 261,
+                "sizeY": max(320, min(540, int(screenHeight * 0.41))),
+            }
+        },
+    }
+
+
 if __name__ == "__main__":
     cwd = os.getcwd()
     Media = {}  # dictionary to hold onto all the media
     importantInfo = {}
     primePartsnames = []
+    app = QApplication(sys.argv)
+    primaryScreen = app.primaryScreen()
+    if primaryScreen is not None:
+        screenGeometry = primaryScreen.availableGeometry()
+        screenWidth = screenGeometry.width()
+        screenHeight = screenGeometry.height()
+    else:
+        screenWidth = 1920
+        screenHeight = 1080
     searchDefaults = {  # default search window settings
         "posX": 200,
         "posY": 440,
@@ -1365,46 +1488,19 @@ if __name__ == "__main__":
         "globalSettingwindow": globalSettingwindowdefaults,
         "radio": radioDefaults,
     }  # defaults when a new window is called
+    initialDefaultLayout = buildDefaultLayout(screenWidth, screenHeight)
+    initialResetLayout = buildResetLayout(screenWidth, screenHeight)
     layoutsDict = {  # all saved layouts dict
-        "default": {
-            "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            "listing": [0],
-            "scale": [0],
-            0: {
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "searchWindow": {"posX": 478, "posY": 398, "sizeX": 236, "sizeY": 67},
-                "infoWindow": {"posX": 478, "posY": 78, "sizeX": 200, "sizeY": 145},
-                "globalSettingwindow": {"posX": 94, "posY": 107, "sizeX": 261, "sizeY": 440},
-            },
-            1: {
-                "searchWindow": {"posX": 721, "posY": 398, "sizeX": 236, "sizeY": 67},
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "infoWindow": {"posX": 720, "posY": 78, "sizeX": 200, "sizeY": 145},
-            },
-            2: {
-                "searchWindow": {"posX": 964, "posY": 398, "sizeX": 235, "sizeY": 67},
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "infoWindow": {"posX": 963, "posY": 77, "sizeX": 200, "sizeY": 145},
-            },
-            3: {
-                "searchWindow": {"posX": 1206, "posY": 398, "sizeX": 235, "sizeY": 66},
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "infoWindow": {"posX": 1204, "posY": 77, "sizeX": 200, "sizeY": 145},
-            },
-        },
-        "reset": {
-            "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            "listing": [0],
-            "scale": [0],
-            0: {"globalSettingwindow": {"posX": 94, "posY": 107, "sizeX": 261, "sizeY": 440}},
-        },
+        "default": initialDefaultLayout,
+        "reset": initialResetLayout,
     }
     try:  # tries to find the file the layouts saves to
         with open("layouts.p", "rb") as file:
             layoutsDict = pickle.load(file)
-    except:  # if it cant do it, just use the earlier called out dict.
+    except (FileNotFoundError, EOFError, pickle.UnpicklingError):  # if it cant do it, just use the earlier called out dict.
         pass
-    settingsDict = copy.deepcopy(layoutsDict["default"])
+    startupLayout = "last_used" if "last_used" in layoutsDict else "default"
+    settingsDict = copy.deepcopy(layoutsDict[startupLayout])
     dropLoadnames = [
         "DropIcon",
         "DropDulledIcon",
@@ -1450,6 +1546,5 @@ if __name__ == "__main__":
     # }
     # current_keys = set()
     instance = None
-    app = QApplication(sys.argv)
     loadMedia()
     windowCreate()
