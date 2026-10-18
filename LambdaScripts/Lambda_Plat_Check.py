@@ -4,14 +4,24 @@ import requests
 import json
 import operator
 import boto3
+import os
 
 API = "https://api.warframe.market/v1/items"
+S3_BUCKET = os.getenv("WFMO_S3_BUCKET", "www.jsourdough.com")
+ITEMS_AND_DUCATS_URL = os.getenv(
+    "WFMO_ITEMS_AND_DUCATS_URL",
+    f"https://s3.us-east-2.amazonaws.com/{S3_BUCKET}/ItemsAndDucats.json",
+)
+
+
+def get_json(url):
+    response = requests.get(url, timeout=20)
+    response.raise_for_status()
+    return response.json()
 
 
 def importNamesandDucats():
-    imported = requests.get(
-        "https://s3.us-east-2.amazonaws.com/www.jsourdough.com/ItemsAndDucats.json"
-    ).json()
+    imported = get_json(ITEMS_AND_DUCATS_URL)
     itemsNames = imported["itemsNames"]
     itemsDucat = imported["itemsDucat"]
     return itemsNames, itemsDucat
@@ -28,7 +38,7 @@ def updateItemplat(
 ):
     itemsOrdersingame = {"sell": {}, "buy": {}}
     itemRaw = {}
-    itemRaw = requests.get(API + "/" + itemsNames[itemName] + "/orders").json()["payload"]["orders"]
+    itemRaw = get_json(API + "/" + itemsNames[itemName] + "/orders")["payload"]["orders"]
     itemsOrdersingame["sell"][itemName] = {}
     itemsOrdersingame["buy"][itemName] = {}
     for i, tk in enumerate(itemRaw):
@@ -234,19 +244,19 @@ def lambda_handler(event, context):
     }
     client = boto3.client("s3")
     client.put_object(
-        Bucket="www.jsourdough.com",
+        Bucket=S3_BUCKET,
         Key="ImportantInfo.json",
         Body=json.dumps(toClient, indent=4),
         ContentType="text/plain",
     )
     client.put_object(
-        Bucket="www.jsourdough.com",
+        Bucket=S3_BUCKET,
         Key="bestDucatplatEfficency.txt",
         Body=bestDucatplatEfficencytxt(20, itemsDucat, itemsOrderscheapest, ducatPlatledgerSorted),
         ContentType="text/plain",
     )
     client.put_object(
-        Bucket="www.jsourdough.com",
+        Bucket=S3_BUCKET,
         Key="playerListings.json",
         Body=json.dumps(playerListingsaccumulator(playerListings), indent=4),
         ContentType="text/plain",

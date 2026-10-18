@@ -1022,7 +1022,7 @@ class globalSettingwindow(instanceWindow):
         self.bottomButtonhBox.addWidget(self.infoButton)
         self.infoButton.clicked.connect(
             lambda: webbrowser.open(
-                "https://github.com/JonathanSourdough/Warframe-Market-Overlay#warframe-market-overlay"
+                "https://github.com/raphalimam/Warframe-Market-Overlay#warframe-market-overlay"
             )
         )
         self.bottomButtonhBox.addStretch(0)
@@ -1193,7 +1193,7 @@ class globalSettingwindow(instanceWindow):
             for sv in v.radioLabelslist:
                 sv.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
             v.radiobox.setContentsMargins(10 * scaleFactor(), 0, 10 * scaleFactor(), 0)
-        if len(v.radioList) == 1:
+        if len(self.radioList) == 1:
             self.radioList[0].radiobox.setMargin(10 * scaleFactor())
         else:
             self.radioList[0].radiobox.setContentsMargins(
@@ -1309,7 +1309,7 @@ def on_release(key):
     # When a key is released, remove it from the set of keys we are keeping track of
     try:
         current_keys.remove(key)
-    except:
+    except KeyError:
         pass
 
 
@@ -1402,7 +1402,7 @@ if __name__ == "__main__":
     try:  # tries to find the file the layouts saves to
         with open("layouts.p", "rb") as file:
             layoutsDict = pickle.load(file)
-    except:  # if it cant do it, just use the earlier called out dict.
+    except (FileNotFoundError, EOFError, pickle.UnpicklingError):  # if it cant do it, just use the earlier called out dict.
         pass
     settingsDict = copy.deepcopy(layoutsDict["default"])
     dropLoadnames = [

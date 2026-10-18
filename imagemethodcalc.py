@@ -6,6 +6,10 @@ import json
 import os
 
 cwd = os.getcwd()
+IMPORTANT_INFO_URL = os.getenv(
+    "WFMO_IMPORTANT_INFO_URL",
+    "https://s3.us-east-2.amazonaws.com/www.jsourdough.com/ImportantInfo.json",
+)
 
 
 importantInfo = {}
@@ -24,9 +28,9 @@ def getImportantinfo():
     global importantInfo
     global warframeParts
     global primePartsnames
-    importantInfo = requests.get(
-        "https://s3.us-east-2.amazonaws.com/www.jsourdough.com/ImportantInfo.json"
-    ).json()
+    response = requests.get(IMPORTANT_INFO_URL, timeout=20)
+    response.raise_for_status()
+    importantInfo = response.json()
     importantInfo["itemsNames"]["Forma Blueprint"] = "Forma"
     importantInfo["itemsNames"]["Failed"] = "Failed"
     importantInfo["itemsDucat"]["Forma Blueprint"] = 0
@@ -57,7 +61,7 @@ def imageTolist(image):
         if not (screenTesseractraw[i] == "" or screenTesseractraw[i].isspace()):
             try:
                 int(v.replace(",", ""))
-            except:
+            except ValueError:
                 screenTesseract.append(v)
     return screenTesseract
 
