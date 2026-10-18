@@ -103,6 +103,7 @@ You can increase the UI scale up to 2x, using the slider at the bottom, this was
 You can also create a new scan window with the "New" button at the bottom<br/>
 The "Info" Button will take you to the Readme on GitHub
 The "Remember Layout" button saves current overlay positions/sizes and reuses them on next startup
+The "Auto Reset Layout" button rebuilds overlay positions for the current monitor resolution and saves it for next startup
 
 # Thanks
 

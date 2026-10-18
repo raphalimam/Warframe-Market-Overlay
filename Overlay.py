@@ -1013,7 +1013,11 @@ class globalSettingwindow(instanceWindow):
         self.newButton = QPushButton(self, icon=Media["NewIconMain"])
         self.infoButton = QPushButton(self, icon=Media["InfoIcon"])
         self.rememberButton = QPushButton("Remember Layout", self)
+        self.autoResetButton = QPushButton("Auto Reset Layout", self)
         self.rememberButton.setStyleSheet(
+            "QPushButton {color: white; border: 1px solid white; border-radius: 3px;}"
+        )
+        self.autoResetButton.setStyleSheet(
             "QPushButton {color: white; border: 1px solid white; border-radius: 3px;}"
         )
         self.newButton.setIconSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
@@ -1034,6 +1038,11 @@ class globalSettingwindow(instanceWindow):
         self.rememberButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
         self.bottomButtonhBox.addWidget(self.rememberButton)
         self.rememberButton.clicked.connect(self.rememberCurrentLayout)
+        self.bottomButtonhBox.addStretch(0)
+        self.autoResetButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.autoResetButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
+        self.bottomButtonhBox.addWidget(self.autoResetButton)
+        self.autoResetButton.clicked.connect(self.resetToAutoLayout)
         self.bottomButtonhBox.addStretch(0)
         self.windowBox.addLayout(self.bottomButtonhBox)
         self.bottomButtonhBox.setContentsMargins(
@@ -1112,27 +1121,46 @@ class globalSettingwindow(instanceWindow):
         with open("layouts.p", "wb") as file:
             pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def loadLayout(self, *args):
+    def applyLayoutDict(self, layoutDict):
         global settingsDict
+        self.closeAll()
+        settingsDict = copy.deepcopy(layoutDict)
+        self.windowTypes["globalSettingwindow"][0].destroy()
+        self.windowTypes["globalSettingwindow"].pop(0)
+        for k, v in settingsDict.items():
+            if "searchWindow" in v:
+                instance.searchWindowdict[k] = searchWindow(windowDesignation=k)
+                instance.infoWindowdict[k] = infoWindow(windowDesignation=k)
+            if "globalSettingwindow" in v:
+                instance.globalSettingwindowDict[k] = globalSettingwindow(windowDesignation=k)
+            if "settingWindow" in v:
+                instance.settingWindowdict[k] = settingWindow(windowDesignation=k)
+
+    def resetToAutoLayout(self, *args):
+        global layoutsDict
+        screen = app.primaryScreen()
+        if screen is not None:
+            screenGeometry = screen.availableGeometry()
+            screenWidth = screenGeometry.width()
+            screenHeight = screenGeometry.height()
+        else:
+            screenWidth = 1920
+            screenHeight = 1080
+        autoLayout = buildDefaultLayout(screenWidth, screenHeight)
+        layoutsDict["default"] = copy.deepcopy(autoLayout)
+        layoutsDict["last_used"] = copy.deepcopy(autoLayout)
+        with open("layouts.p", "wb") as file:
+            pickle.dump(layoutsDict, file, protocol=pickle.HIGHEST_PROTOCOL)
+        self.applyLayoutDict(autoLayout)
+
+    def loadLayout(self, *args):
         global layoutsDict
         if self.savedLayoutscomboBox.currentIndex() != -1:
-            self.closeAll()
-            settingsDict = copy.deepcopy(
-                layoutsDict[
-                    self.savedLayoutscomboBox.itemText(self.savedLayoutscomboBox.currentIndex())
-                ]
-            )
-            self.windowTypes["globalSettingwindow"][0].destroy()
-            self.windowTypes["globalSettingwindow"].pop(0)
+            selectedLayout = layoutsDict[
+                self.savedLayoutscomboBox.itemText(self.savedLayoutscomboBox.currentIndex())
+            ]
             self.savedLayoutscomboBox.setCurrentIndex(-1)
-            for k, v in settingsDict.items():
-                if "searchWindow" in v:
-                    instance.searchWindowdict[k] = searchWindow(windowDesignation=k)
-                    instance.infoWindowdict[k] = infoWindow(windowDesignation=k)
-                if "globalSettingwindow" in v:
-                    instance.globalSettingwindowDict[k] = globalSettingwindow(windowDesignation=k)
-                if "settingWindow" in v:
-                    instance.settingWindowdict[k] = settingWindow(windowDesignation=k)
+            self.applyLayoutDict(selectedLayout)
 
     def deleteLayout(self, *args):
         global layoutsDict
@@ -1247,6 +1275,8 @@ class globalSettingwindow(instanceWindow):
         self.infoButton.setFixedSize(QSize(90 * scaleFactor(), 40 * scaleFactor()))
         self.rememberButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
         self.rememberButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
+        self.autoResetButton.setFont(QFont("Tahoma", 8 * scaleFactor(), 3))
+        self.autoResetButton.setFixedSize(QSize(140 * scaleFactor(), 40 * scaleFactor()))
         self.bottomButtonhBox.setContentsMargins(
             10 * scaleFactor(), 10 * scaleFactor(), 10 * scaleFactor(), 10 * scaleFactor()
         )
