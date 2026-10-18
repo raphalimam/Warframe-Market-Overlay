@@ -1327,11 +1327,74 @@ class showHidethread(QThread):
         self.signal.signalHide.emit()
 
 
+def buildDefaultLayout(screenWidth, screenHeight):
+    searchWidths = [236, 236, 235, 235]
+    searchHeights = [67, 67, 67, 66]
+    spacing = 7
+    totalScanWidth = sum(searchWidths) + spacing * (len(searchWidths) - 1)
+    scanStartX = max(20, int((screenWidth - totalScanWidth) / 2))
+    scanY = max(40, int(screenHeight * 0.369))
+    infoY = max(20, int(screenHeight * 0.072))
+    globalX = max(20, int(screenWidth * 0.049))
+    globalY = max(20, int(screenHeight * 0.099))
+    globalSettingHeight = max(320, min(540, int(screenHeight * 0.41)))
+    defaultLayout = {
+        "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "listing": [0],
+        "scale": [0],
+    }
+    x = scanStartX
+    for i in range(4):
+        defaultLayout[i] = {
+            "searchWindow": {
+                "posX": x,
+                "posY": scanY,
+                "sizeX": searchWidths[i],
+                "sizeY": searchHeights[i],
+            },
+            "radio": [0, 0, 0, 0, 0, 0, 0],
+            "infoWindow": {"posX": x, "posY": infoY, "sizeX": 200, "sizeY": 145},
+        }
+        x += searchWidths[i] + spacing
+    defaultLayout[0]["globalSettingwindow"] = {
+        "posX": globalX,
+        "posY": globalY,
+        "sizeX": 261,
+        "sizeY": globalSettingHeight,
+    }
+    return defaultLayout
+
+
+def buildResetLayout(screenWidth, screenHeight):
+    return {
+        "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "listing": [0],
+        "scale": [0],
+        0: {
+            "globalSettingwindow": {
+                "posX": max(20, int(screenWidth * 0.049)),
+                "posY": max(20, int(screenHeight * 0.099)),
+                "sizeX": 261,
+                "sizeY": max(320, min(540, int(screenHeight * 0.41))),
+            }
+        },
+    }
+
+
 if __name__ == "__main__":
     cwd = os.getcwd()
     Media = {}  # dictionary to hold onto all the media
     importantInfo = {}
     primePartsnames = []
+    app = QApplication(sys.argv)
+    primaryScreen = app.primaryScreen()
+    if primaryScreen is not None:
+        screenGeometry = primaryScreen.availableGeometry()
+        screenWidth = screenGeometry.width()
+        screenHeight = screenGeometry.height()
+    else:
+        screenWidth = 1920
+        screenHeight = 1080
     searchDefaults = {  # default search window settings
         "posX": 200,
         "posY": 440,
@@ -1365,39 +1428,11 @@ if __name__ == "__main__":
         "globalSettingwindow": globalSettingwindowdefaults,
         "radio": radioDefaults,
     }  # defaults when a new window is called
+    initialDefaultLayout = buildDefaultLayout(screenWidth, screenHeight)
+    initialResetLayout = buildResetLayout(screenWidth, screenHeight)
     layoutsDict = {  # all saved layouts dict
-        "default": {
-            "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            "listing": [0],
-            "scale": [0],
-            0: {
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "searchWindow": {"posX": 478, "posY": 398, "sizeX": 236, "sizeY": 67},
-                "infoWindow": {"posX": 478, "posY": 78, "sizeX": 200, "sizeY": 145},
-                "globalSettingwindow": {"posX": 94, "posY": 107, "sizeX": 261, "sizeY": 440},
-            },
-            1: {
-                "searchWindow": {"posX": 721, "posY": 398, "sizeX": 236, "sizeY": 67},
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "infoWindow": {"posX": 720, "posY": 78, "sizeX": 200, "sizeY": 145},
-            },
-            2: {
-                "searchWindow": {"posX": 964, "posY": 398, "sizeX": 235, "sizeY": 67},
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "infoWindow": {"posX": 963, "posY": 77, "sizeX": 200, "sizeY": 145},
-            },
-            3: {
-                "searchWindow": {"posX": 1206, "posY": 398, "sizeX": 235, "sizeY": 66},
-                "radio": [0, 0, 0, 0, 0, 0, 0],
-                "infoWindow": {"posX": 1204, "posY": 77, "sizeX": 200, "sizeY": 145},
-            },
-        },
-        "reset": {
-            "globalRadio": [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            "listing": [0],
-            "scale": [0],
-            0: {"globalSettingwindow": {"posX": 94, "posY": 107, "sizeX": 261, "sizeY": 440}},
-        },
+        "default": initialDefaultLayout,
+        "reset": initialResetLayout,
     }
     try:  # tries to find the file the layouts saves to
         with open("layouts.p", "rb") as file:
@@ -1450,6 +1485,5 @@ if __name__ == "__main__":
     # }
     # current_keys = set()
     instance = None
-    app = QApplication(sys.argv)
     loadMedia()
     windowCreate()
