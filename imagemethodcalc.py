@@ -4,6 +4,9 @@ import difflib
 import operator
 import json
 import os
+from pathlib import Path
+
+from item_catalog import find_item
 
 cwd = os.getcwd()
 IMPORTANT_INFO_URL = os.getenv(
@@ -11,10 +14,40 @@ IMPORTANT_INFO_URL = os.getenv(
     "https://s3.us-east-2.amazonaws.com/www.jsourdough.com/ImportantInfo.json",
 )
 
+BASE_DIR = Path(__file__).resolve().parent
+CATALOG_PATH = BASE_DIR / "catalogs" / "items.pt.json"
+
+catalog = []
 
 importantInfo = {}
 warframeParts = ["Chassis", "Systems", "Neuroptics"]
 primePartsnames = []
+
+def load_catalog():
+    global catalog
+
+    if catalog:
+        return catalog
+
+    if not CATALOG_PATH.is_file():
+        raise FileNotFoundError(
+            f"Catálogo não encontrado: {CATALOG_PATH}"
+        )
+
+    with CATALOG_PATH.open("r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    items = data.get("items")
+
+    if not isinstance(items, list) or not items:
+        raise ValueError(
+            "O catálogo não contém uma lista válida em 'items'."
+        )
+
+    catalog = items
+    print(f"Catálogo carregado: {len(catalog)} itens.")
+
+    return catalog
 # pytesseract.pytesseract.tesseract_cmd = cwd + "/Tesseract-OCR-V5/tesseract.exe"
 
 
@@ -31,6 +64,9 @@ def getImportantinfo():
     response = requests.get(IMPORTANT_INFO_URL, timeout=20)
     response.raise_for_status()
     importantInfo = response.json()
+
+    load_catalog()
+    primePartsnames = []
     importantInfo["itemsNames"]["Forma Blueprint"] = "Forma"
     importantInfo["itemsNames"]["Failed"] = "Failed"
     importantInfo["itemsDucat"]["Forma Blueprint"] = 0
@@ -53,18 +89,53 @@ def getImportantinfo():
 
 
 def imageTolist(image):
-    screenTesseract = []
-    screenTesseractraw = pytesseract.image_to_string(
-        image, config="--psm 4 --tessdata-dir tessdata --user-words eng.user-words"
-    ).split("\n")
-    for i, v in enumerate(screenTesseractraw):
-        if not (screenTesseractraw[i] == "" or screenTesseractraw[i].isspace()):
-            try:
-                int(v.replace(",", ""))
-            except ValueError:
-                screenTesseract.append(v)
-    return screenTesseract
+    tessdata_dir = BASE_DIR / "tessdata"
 
+    has_por = (tessdata_dir / "por.traineddata").is_file()
+    has_eng = (tessdata_dir / "eng.traineddata").is_file()
+
+    if has_por and has_eng:
+        languages = "por+eng"
+    elif has_por:
+        languages = "por"
+    elif has_eng:
+        languages = "eng"
+        print(
+            "Aviso: por.traineddata não encontrado. "
+            "O OCR usará inglês e poderá reconhecer pior os nomes em português."
+        )
+    else:
+        raise FileNotFoundError(
+            f"Nenhum arquivo de idioma do Tesseract foi encontrado em {tessdata_dir}. "
+            "Instale por.traineddata e eng.traineddata."
+        )
+
+    config = f'--psm 4 --tessdata-dir "{tessdata_dir}"'
+
+    user_words = BASE_DIR / "eng.user-words"
+    if user_words.is_file():
+        config += f' --user-words "{user_words}"'
+
+    text = pytesseract.image_to_string(
+        image,
+        lang=languages,
+        config=config
+    )
+
+    result = []
+
+    for line in text.splitlines():
+        line = line.strip()
+
+        if not line:
+            continue
+
+        try:
+            int(line.replace(",", ""))
+        except ValueError:
+            result.append(line)
+
+    return result
 
 def mappedWordprocessing(itemName, primePartsnames):
     global warframeParts
@@ -82,19 +153,106 @@ def mappedWordprocessing(itemName, primePartsnames):
     return diffValuessorted[0]
 
 
+def _resolve_market_name(item, primePartsnames):
+    """
+    Converte o registro reconhecido no nome esperado pelo sistema antigo.
+    Funciona também quando o reconhecimento ocorre em um processo separado.
+    """
+    if not item:
+        return None
+
+    market_names = set(primePartsnames or [])
+
+    names = item.get("names") or {}
+    english_names = names.get("en") or []
+
+    if isinstance(english_names, str):
+        english_names = [english_names]
+
+    candidates = []
+
+    legacy_name = item.get("legacy_name")
+    if isinstance(legacy_name, str) and legacy_name.strip():
+        candidates.append(legacy_name.strip())
+
+    candidates.extend(
+        name.strip()
+        for name in english_names
+        if isinstance(name, str) and name.strip()
+    )
+
+    # Remove duplicatas sem perder a ordem.
+    candidates = list(dict.fromkeys(candidates))
+    # Compatibilidade com a entrada especial adicionada ao sistema antigo.
+    if "Forma Blueprint" in market_names:
+        if any(name.casefold() == "forma" for name in candidates):
+            return "Forma Blueprint"
+            
+    for name in candidates:
+        # Peças comuns: o nome inglês já é uma chave de mercado.
+        if name in market_names:
+            if (
+                name.endswith(" Blueprint")
+                and any(part in name for part in warframeParts)
+            ):
+                return name[:-len(" Blueprint")]
+
+            return name
+
+        # O código antigo acrescenta "Blueprint" às peças de Warframe.
+        if (
+            any(part in name for part in warframeParts)
+            and name + " Blueprint" in market_names
+        ):
+            return name
+
+        # Se o catálogo tiver o sufixo, tenta também o nome sem ele.
+        if name.endswith(" Blueprint"):
+            base_name = name[:-len(" Blueprint")]
+
+            if base_name in market_names:
+                return base_name
+
+    return None
+
+
 def mappedCalc(image, primePartsnames):
-    processedPrime = None
-    primePart = imageTolist(image)
-    bestRead = ("Failed", 0)
-    multiLine = ("Failed", 0)
-    oneLine = ("Failed", 0)
-    if primePart != []:
-        multiLine = mappedWordprocessing(" ".join(primePart).title(), primePartsnames)
-        oneLine = mappedWordprocessing(primePart[-1].title(), primePartsnames)
-        if multiLine[1] >= oneLine[1]:
-            bestRead = multiLine
-            processedPrime = " ".join(primePart)
-        else:
-            bestRead = oneLine
-            processedPrime = primePart[-1]
-    return (bestRead[0], str(bestRead[1]))
+    if not catalog:
+        load_catalog()
+
+    lines = imageTolist(image)
+
+    if not lines:
+        return ("Failed", "0")
+
+    # Testa o texto completo e as linhas individuais do OCR.
+    texts_to_test = [" ".join(lines)]
+    texts_to_test.extend(lines)
+
+    best_score = 0
+    best_name = None
+    best_valid_score = -1
+
+    for text in texts_to_test:
+        item, score = find_item(
+            text,
+            catalog,
+            language="pt",
+            threshold=0.78
+        )
+
+        best_score = max(best_score, score)
+
+        if item is None:
+            continue
+
+        market_name = _resolve_market_name(item, primePartsnames)
+
+        if market_name is not None and score > best_valid_score:
+            best_name = market_name
+            best_valid_score = score
+
+    if best_name is None:
+        return ("Failed", str(best_score))
+
+    return (best_name, str(best_valid_score))
