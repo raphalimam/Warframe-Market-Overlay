@@ -23,6 +23,9 @@ https://digi.bib.uni-mannheim.de/tesseract/ (Assembled Binaries)
 
 Make sure it is in your windows path variable. (for pytesseract to be able to find it)<br />
 Otherwise you will have to edit imagemethodcalc.py to find the .exe, theres a placeholder example commented out in there already.
+The OCR language can be configured with `WFMO_OCR_LANGUAGE` (for example `por` or `por+eng`).<br />
+If needed, set `WFMO_OCR_FALLBACK_LANGUAGE` (default `eng`) to retry OCR when the main language data is unavailable.<br />
+Make sure the corresponding `.traineddata` files exist in `tessdata` (for example `por.traineddata`).
 
 
 ## How to use
