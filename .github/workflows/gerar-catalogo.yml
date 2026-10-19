@@ -1,0 +1,42 @@
+
+name: Gerar catalogo de itens
+
+on:
+  workflow_dispatch:
+  # Para atualizar automaticamente toda semana:
+  # schedule:
+  #   - cron: "0 9 * * 1"
+
+permissions:
+  contents: write
+
+jobs:
+  gerar-catalogo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: python -m pip install requests
+
+      - name: Gerar catalogo
+        run: python generate_catalog.py
+
+      - name: Salvar catalogo no GitHub
+        run: |
+          git add catalogs/items.pt.json
+          if git diff --cached --quiet; then
+            echo "O catalogo nao teve alteracoes."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Atualiza catalogo de itens"
+            git push
+          fi
